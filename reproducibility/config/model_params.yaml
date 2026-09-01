@@ -1,0 +1,96 @@
+# ---------------------------------------------------------------------------
+# IRIS model hyperparameters -- the values actually used for every published
+# figure. Recovered by cross-checking three independent sources that all agree:
+#   1. the `architectures` dict in miram_lung_rerun.py / orchestrator_lobo.py
+#   2. the on-disk model checkpoint directory names (h<hidden>_z<latent>)
+#   3. Supplementary Fig. 5c ("Hyperparameters with best performance")
+#
+# Selected by the cross-batch hyperparameter screen (Supp. Fig. 5): the mESC
+# screen was split into 3 collection batches, two used for training and one
+# held out, scored by AUPRC averaged over all three iterations.
+# The screen swept layers 1-3, hidden 2^n (n=5..10), latent 10n (n=1,3,5,7,9);
+# shallow (1-layer) architectures won for every pathway.
+# ---------------------------------------------------------------------------
+
+architectures:
+  # signal: {n_hidden, n_latent}
+  Wnt:  {n_hidden: 64,   n_latent: 30}
+  TgfB: {n_hidden: 1024, n_latent: 30}
+  Fgf:  {n_hidden: 128,  n_latent: 70}
+  RA:   {n_hidden: 256,  n_latent: 70}
+  Bmp:  {n_hidden: 256,  n_latent: 70}
+  # Shh is used only for the foregut/lung analysis; it is excluded from the
+  # main benchmarks because too few cells were Shh-stimulated in the mESC
+  # screen to give statistical power (see paper, Results).
+  Shh:  {n_hidden: 256,  n_latent: 30}
+
+training:
+  n_layers: 1              # shallow architectures generalized best across batches
+  scvi_epochs: 40
+  scanvi_epochs: 5
+  gene_likelihood: zinb    # zero-inflated negative binomial
+  kl_weight: 0.01          # alpha, the scvi-tools default
+  classifier_threshold: 0.5  # agnostic to downstream error type (Supp. Fig. 3)
+  random_seed: 42
+
+setup_anndata:
+  layer: counts
+  batch_key: batch
+  labels_key: "{signal}_class_masked"
+  unlabeled_category: unknown
+  categorical_covariate_keys: [batch, celltype, species]
+
+# --- Screen / batch identity ----------------------------------------------
+# `batch` is an integer code in every h5ad. This mapping is verified against
+# the per-batch cell counts reported in the Methods.
+batches:
+  1: {name: mP_d1, species: mouse, lineage: pluripotent, n_cells: 4751,
+      description: "mESC 24h exit from pluripotency (primitive streak-like)"}
+  2: {name: mixed, species: mouse, lineage: mixed, n_cells: 175,
+      description: "mESC mixed collection batch; excluded from CV to avoid
+                    overlap with mP_d1 and mE_d2"}
+  3: {name: mE_d2, species: mouse, lineage: endoderm, n_cells: 5224,
+      description: "mESC anterior-PS-derived, endoderm-biased (Yeo et al. 2020)"}
+  5: {name: hM_d4, species: human, lineage: mesoderm, n_cells: 6379,
+      description: "hESC mesoderm day 4; 2-step sequential combinatorial screen"}
+  6: {name: hE_d8, species: human, lineage: endoderm, n_cells: 9921,
+      description: "hESC endoderm day 8; full 2^6 combinations in final step"}
+  7: {name: hM_d7, species: human, lineage: mesoderm, n_cells: 11857,
+      description: "hESC mesoderm day 7; 4 splanchnic subtypes x 2^4 = 64 states"}
+
+# --- Data splits used by each published test ------------------------------
+splits:
+  cross_validation:            # Fig. 2c, Supp. Fig. 6 -- hold out one screen
+    held_out: [1, 3, 5, 6, 7]  # batch 2 (mixed) excluded, see above
+  endoderm_to_mesoderm:        # Fig. 2d, Supp. Fig. 7
+    train: [3, 6]              # mE_d2 + hE_d8
+    test:  [5, 7]              # hM_d4 + hM_d7
+  cross_species:               # Fig. 2e, Supp. Fig. 8
+    mouse_to_human: {train: [1, 2, 3], test: [5, 6, 7]}
+    human_to_mouse: {train: [5, 6, 7], test: [1, 2, 3]}
+  in_species_boost:            # Supp. Fig. 8c -- add 10% of an unrelated
+    train: [1, 2, 3]           # in-species screen to the training set
+    train_supplement: {batch: 6, fraction: 0.10}
+    test: [5]
+
+# --- Response genes (baseline method) --------------------------------------
+# Modified from Han et al. 2020 (ref. 17); see Supp. Fig. 1a.
+# Stored as HUMAN symbols: mouse data is converted to human gene names with
+# `mousipy` before analysis, per the Methods.
+response_genes:
+  RA:   [HOXA1, HOXB2, HOXA3, HOXA2, HOXB3]
+  Wnt:  [AXIN1, CCND1, DKK1, MYC, NOTUM, AXIN2, SP5, LEF1]
+  Fgf:  [SPRY1, SPRY2, DUSP6, SPRY4, ETV5, ETV4, FOS, MYC, JUNB, DUSP14]
+  Bmp:  [ID2, BMPER, ID4, ID1, BAMBI, MSX1, ID3, MSX2, SMAD7]
+  TgfB: [SMAD7, TWIST1, TWIST2]
+
+# --- Display conventions ---------------------------------------------------
+# Bit order for the 5-digit combinatorial code, e.g. "11000".
+signal_order: [TgfB, Wnt, Fgf, Bmp, RA]
+display_names: {TgfB: "TGF-beta", Wnt: WNT, Fgf: FGF, Bmp: BMP, RA: RA}
+palette:
+  TgfB: "#000000"
+  Wnt:  "#3fb8d6"
+  Fgf:  "#3aa757"
+  Bmp:  "#a1785a"
+  RA:   "#e8474b"

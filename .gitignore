@@ -4,6 +4,7 @@ __pycache__/
 *.pyo
 *.DS_Store
 
-# Ignore stray notebooks, but keep the curated examples
+# Ignore stray notebooks, but keep the curated ones that are documented
 *.ipynb
 !iris/examples/*.ipynb
+!reproducibility/notebooks/*.ipynb

@@ -1,0 +1,16 @@
+# Generated figures and tables — reproducible from the scripts
+outputs/
+
+# Expensive intermediate results (hours of compute); keep locally, don't commit
+cache/
+
+__pycache__/
+*.pyc
+*.pyo
+.ipynb_checkpoints/
+.DS_Store
+
+# Never commit data
+*.h5ad
+*.npz
+logs/

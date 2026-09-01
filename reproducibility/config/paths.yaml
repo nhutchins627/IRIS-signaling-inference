@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------------------
+# IRIS reproducibility - path configuration
+#
+# Every path used by any script/notebook in this package resolves through here.
+# To relocate the analysis (new machine, new archive mount), edit ONLY this file.
+#
+# NOTE: the historical working directory `/lab/tambora_li/Nicholas/figures-paper/`
+# no longer exists -- it was moved to `/archive/li/...`. Legacy scripts in the
+# rebuttal directory still contain hard-coded references to the old location and
+# will fail if run as-is. `iris_repro.config` rewrites those paths transparently.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# PORTABILITY
+#
+# Defaults are the Whitehead lab paths where this analysis ran. The data is NOT
+# public at those locations -- obtain it from the accessions in docs/DATA.md and
+# point these at your copy, either by editing this file or via:
+#
+#   export IRIS_WORK_DIR=/path/to/working
+#   export IRIS_ARCHIVE_DIR=/path/to/archive
+#   export IRIS_OUTPUT_DIR=/path/to/outputs
+#
+# Run `python scripts/check_setup.py` to see what resolves.
+# ---------------------------------------------------------------------------
+
+roots:
+  # Live working directory (rebuttal-era analysis, models, CSV results)
+  work: /lab/tambora_li/Nicholas/IRIS_Nat_methods_rebut
+  # Cold archive (figure-era data, large h5ad atlases, model checkpoints)
+  archive: /archive/li/Nicholas-IRIS-figures-paper-archive
+  # Where this package writes its regenerated figures / tables
+  outputs: ${work}/IRIS_reproducibility/outputs
+
+# --- Primary training data -------------------------------------------------
+# The combined mESC + hESC perturbation screen reference (38,307 cells x 13,222 genes).
+# obs columns: batch, celltype, species, {RA,Wnt,TgfB,Bmp,Fgf,Shh}_class
+data:
+  screens_ref_full:  ${work}/screens_ref_full.h5ad
+  screens_grouped:   ${work}/screens_grouped.h5ad
+
+  # Gastrulation atlas (Pijuan-Sala E6.5-E8.5) concatenated with the screens.
+  # 170,265 cells total; ~139,331 are atlas cells (matches Supp. Fig. 14b n).
+  gastrulation_atlas: ${archive}/fig5v2/fig5v2_data.h5ad
+  gastrulation_umap:  ${archive}/fig5v2/umap_coordinates_gastr_atlas.csv
+
+  # Organ-specific mesenchyme of the E9-E9.5 mouse foregut (Fig. 4a).
+  # This object carries the divergent mesenchymal fate labels in .obs['celltype']
+  # ('respiratory', 'esophagus', 'dorsal lateral foregut', 'pharyngeal ...'),
+  # concatenated with the perturbation screens used as the SCANVI reference.
+  foregut_mesenchyme: ${archive}/fig6/detailed_celltypes_augmented_lung_intestine_mesenchyme_screens.h5ad
+  # The SCANVI reference alone (screens only), as used by the fig4 runners.
+  foregut_reference:  ${archive}/fig4v2/screens_ref.h5ad
+  # E10-E11.5 mouse lung query used by miram_lung_rerun.py (Supp. Fig. 21 context).
+  lung_query: /lab/tambora_li/Nicholas/screen_late/miram_lung.h5ad
+
+  # McCauley et al. 2024 adult human airway epithelium (Supp. Fig. 19)
+  airway_epithelium:      ${work}/human_airway_epithelium.h5ad
+  airway_epithelium_raw:  ${work}/GSE246368_all_data.h5ad
+
+  # Full experiment object used by the fig3/fig4 rerun
+  full_experiment: ${archive}/fig3-4-rerun/full_adata_experiment_rewrite.h5ad
+
+# --- Legacy path rewriting -------------------------------------------------
+# Old prefix -> new prefix. Applied by iris_repro.config.resolve().
+legacy_rewrites:
+  /lab/tambora_li/Nicholas/figures-paper: ${archive}
+
+# --- Results produced by the rebuttal analyses -----------------------------
+results:
+  cross_validation:  ${work}/clean_splits          # single-screen held-out CV
+  cross_species:     ${work}                       # cross_species_*_results.csv
+  endoderm_to_meso:  ${work}                       # mesc_in_endo_out_*_results.csv
+  ablation:          ${work}/ablation_results
+  ablation_cache:    ${work}/cache                 # cache/mi, cache/hvg
+  in_vivo:           ${work}/in_vivo_results
+  somitic:           ${work}/psm_somitic_figures
+  receptor_tests:    ${work}/receptor_pred_tests
+  model_benchmarks:  ${work}                       # benchmark_*.csv, baselines_*.csv
+  source_data:       ${work}/source_data_exports
+  fig1_source_data:  ${work}/fig1_source_data_from_archive
+
+# --- Pretrained model checkpoints ------------------------------------------
+# Naming: <experiment>_<Signal>_..._scanvi_model.pt (an scvi-tools save DIRECTORY)
+models:
+  gastrulation:   ${work}                          # zorn_scanvi_layers_1_hidden=*_rs/
+  foregut:        ${work}                          # miram_out_<Signal>_scviALL_scanvi_h*_z*_model/
+  airway:         ${work}                          # mccauley_vae_zorn_scanvi_layers_1_*_rs/
+  cross_species:  ${work}                          # cross_species_<Signal>_results_..._scanvi_model.pt/
+  clean_splits:   ${work}                          # clean_splits[2]_<Signal>_results_..._scanvi_model.pt/
