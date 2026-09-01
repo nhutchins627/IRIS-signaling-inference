@@ -203,13 +203,45 @@ def compute_cross_species_baselines(cache: Path, scope: str = "out") -> pd.DataF
 
 
 def load_cross_species_iris(scope: str = "out") -> pd.DataFrame:
-    """IRIS metrics on the cross-species splits, from its prediction CSVs."""
+    """IRIS metrics on the cross-species splits, from its prediction CSVs.
+
+    The prediction CSVs are labelled by *held-out screen* (``hM_d4``,
+    ``mP_d1+mixed+mE_d2``, ...), while the sklearn baselines are labelled by
+    *direction* (``mouse_to_human`` / ``human_to_mouse``). Those label spaces
+    do not intersect, so the two must be reconciled before any paired
+    comparison -- otherwise a join silently falls back to matching on pathway
+    alone and compares IRIS on one split against a baseline on another.
+    """
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from fig2cd_generalization import collect, score_splits
+
     preds = collect("cross_species")
     table, _ = score_splits(preds)
     out = table.rename(columns={"held_out": "split"})[
         ["signal", "split", "AUROC", "AUPRC", "F1"]].copy()
+
+    # Held-out screens are human => the model trained on mouse, and vice versa.
+    batches = config.batch_table()
+    species_of = {v["name"]: v["species"] for v in batches.values()}
+
+    def _direction(label: str) -> str | None:
+        species = {species_of.get(part) for part in str(label).split("+")}
+        species.discard(None)
+        if species == {"human"}:
+            return "mouse_to_human"   # held out human => trained on mouse
+        if species == {"mouse"}:
+            return "human_to_mouse"
+        return None                   # mixed-species holdout: not a clean split
+
+    out["split"] = [_direction(s) for s in out["split"]]
+    dropped = out["split"].isna().sum()
+    if dropped:
+        print(f"  ! dropped {dropped} IRIS rows whose holdout spans both species")
+    out = out[out["split"].notna()].copy()
+
+    # One row per (pathway, direction): average over the screens on that side.
+    out = (out.groupby(["signal", "split"], as_index=False)[["AUROC", "AUPRC", "F1"]]
+              .mean())
     out["model"] = "IRIS"
     return out
 
@@ -273,13 +305,20 @@ def binomial_vs_iris(df: pd.DataFrame, metric: str = "F1") -> pd.DataFrame:
         print("  ! IRIS rows absent from the benchmark table; skipping tests")
         return pd.DataFrame()
 
-    idx = [c for c in ("signal", "split", "held_out") if c in df.columns]
+    # Pair on pathway AND split. Dropping "split" here would silently compare
+    # IRIS on one split against a competitor on another.
+    idx = [c for c in ("signal", "split") if c in df.columns]
+    if "split" not in idx:
+        raise ValueError("benchmark table has no 'split' column; cannot pair")
     iris = df[df["model"] == "IRIS"].set_index(idx)[metric]
     rows = []
     for model, sub in df[df["model"] != "IRIS"].groupby("model"):
         other = sub.set_index(idx)[metric]
         common = iris.index.intersection(other.index)
         if len(common) == 0:
+            print(f"  ! IRIS and {model} share no (pathway, split) pairs -- "
+                  f"skipping. IRIS splits={sorted({i[1] for i in iris.index})}, "
+                  f"{model} splits={sorted({i[1] for i in other.index})}")
             continue
         wins = int((iris.loc[common] > other.loc[common]).sum())
         rows.append({"comparison": f"IRIS vs {model}", "metric": metric,

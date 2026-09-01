@@ -180,6 +180,46 @@ def test_split_parsing_distinguishes_panels():
     assert _parse_batches(m.group("out")) == (3,)
 
 
+def test_cross_species_splits_are_reconciled():
+    """IRIS and the sklearn baselines must share a split vocabulary.
+
+    The prediction CSVs label splits by held-out screen ("hM_d4"); the
+    baselines label them by direction ("mouse_to_human"). If those are not
+    reconciled, a paired comparison finds no overlap and silently degrades to
+    matching on pathway alone -- comparing IRIS on one split against a
+    competitor on another.
+    """
+    from fig2.fig2e_model_benchmarking import load_cross_species_iris
+
+    try:
+        iris = load_cross_species_iris("out")
+    except SystemExit:
+        return  # cross-species prediction CSVs absent in this checkout
+
+    splits = set(iris["split"])
+    assert splits <= {"mouse_to_human", "human_to_mouse"}, (
+        f"IRIS splits not reconciled to the baseline vocabulary: {splits}")
+    # One row per (pathway, direction) -- no duplicates to average over later.
+    assert not iris.duplicated(["signal", "split"]).any()
+
+
+def test_binomial_pairing_requires_split():
+    """The model comparison must pair on (pathway, split), never pathway alone."""
+    import inspect
+
+    from fig2.fig2e_model_benchmarking import binomial_vs_iris
+
+    src = inspect.getsource(binomial_vs_iris)
+    assert '"split"' in src, "pairing must reference the split column"
+
+    # Non-overlapping splits must yield no comparison, not a bogus one.
+    df = pd.DataFrame([
+        {"signal": "Wnt", "split": "mouse_to_human", "model": "IRIS", "F1": 0.9},
+        {"signal": "Wnt", "split": "hM_d4", "model": "EN", "F1": 0.5},
+    ])
+    assert binomial_vs_iris(df, "F1").empty
+
+
 # --- fig 3 / fig 4 label handling ------------------------------------------
 
 def test_code_string_parsing_normalises_case():
