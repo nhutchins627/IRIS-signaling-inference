@@ -146,7 +146,23 @@ def compute_cross_species_baselines(cache: Path, scope: str = "out") -> pd.DataF
     }
     splits = config.load_config()["splits"]["cross_species"]
     adata = load_screens()
+
+    # Resume support: this loop takes ~1 h and each (split, signal, model) fit
+    # is independent, so results are appended to a partial file as they land.
+    # A kill (SIGTERM, wall-clock limit, preemption) then costs only the fit in
+    # flight rather than the whole run.
+    partial = cache.with_suffix(".partial.csv")
+    done: set[tuple[str, str, str]] = set()
     rows = []
+    if partial.exists():
+        prev = pd.read_csv(partial)
+        rows = prev.to_dict("records")
+        done = {(r["split"], r["signal"], r["model"]) for r in rows}
+        print(f"  resuming: {len(done)} fits already complete in {partial.name}")
+
+    def _checkpoint():
+        partial.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(rows).to_csv(partial, index=False)
 
     for split_name, spec in splits.items():
         tr = adata[np.isin(adata.obs["batch"].values, spec["train"])]
@@ -162,6 +178,8 @@ def compute_cross_species_baselines(cache: Path, scope: str = "out") -> pd.DataF
             if len(np.unique(y_tr)) < 2 or len(np.unique(y_te)) < 2:
                 continue
             for name, est in estimators.items():
+                if (split_name, sig, name) in done:
+                    continue
                 clf = make_pipeline(Normalizer(), est)
                 clf.fit(X_tr, y_tr)
                 src = X_te if scope == "out" else X_tr
@@ -173,11 +191,13 @@ def compute_cross_species_baselines(cache: Path, scope: str = "out") -> pd.DataF
                 rows.append({"signal": sig, "split": split_name, "model": name,
                              "F1": m["F1"], "AUROC": m["AUROC"], "AUPRC": m["AUPRC"]})
                 print(f"  {split_name:16s} {sig:5s} {name:6s} "
-                      f"F1={m['F1']:.3f} AUROC={m['AUROC']:.3f}")
+                      f"F1={m['F1']:.3f} AUROC={m['AUROC']:.3f}", flush=True)
+                _checkpoint()
 
     df = pd.DataFrame(rows)
     cache.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(cache, index=False)
+    partial.unlink(missing_ok=True)
     print(f"  cached -> {cache}")
     return df
 
