@@ -137,6 +137,25 @@ PYTHONPATH=src python figures/supp/supp_source_data.py --run 11    # run one
 
 ---
 
+## Getting the data
+
+The datasets are not bundled. To pull the metadata for every accession the
+paper uses (SOFT + MINiML + an index of the processed files, a few MB total):
+
+```bash
+scripts/fetch_geo_metadata.sh geo_metadata            # metadata only
+scripts/fetch_geo_metadata.sh geo_metadata --suppl    # + processed files (GBs)
+```
+
+Covers GSE289836, GSE122009, GSE136689, GSE246368 and E-MTAB-6967.
+
+Two GEO quirks the script handles: the "download all supplementary files"
+button returns a **TAR** (`<ACC>_RAW.tar`), not a ZIP, and it 404s for series
+with only a handful of files — GSE136689 is one, so its four processed files
+are fetched individually from the FTP directory instead.
+
+---
+
 ## Configuration
 
 Everything that touches the filesystem resolves through `config/paths.yaml`.
