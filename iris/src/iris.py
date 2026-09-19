@@ -27,6 +27,73 @@ if TYPE_CHECKING:
     from scvi.module import VAE
     from numpy.typing import NDArray
 
+
+# Hyperparameters used to produce the published figures.
+#
+# Selected by the cross-batch hyperparameter screen (Supp. Fig. 5): the mESC
+# screen was split into its three collection batches, two used for training and
+# one held out, scored by AUPRC averaged over all three iterations. The sweep
+# covered layers 1-3, hidden 2^n (n=5..10) and latent 10n (n=1,3,5,7,9).
+# Shallow (single-layer) architectures generalized best for every pathway.
+#
+# Note these differ from the run_model() signature defaults; pass them
+# explicitly to reproduce the paper.
+PUBLISHED_ARCHITECTURES = {
+    "Wnt":  {"n_hidden": 64,   "n_latent": 30},
+    "TgfB": {"n_hidden": 1024, "n_latent": 30},
+    "Fgf":  {"n_hidden": 128,  "n_latent": 70},
+    "RA":   {"n_hidden": 256,  "n_latent": 70},
+    "Bmp":  {"n_hidden": 256,  "n_latent": 70},
+    "Shh":  {"n_hidden": 256,  "n_latent": 30},
+}
+
+PUBLISHED_TRAINING = {
+    "n_layers": 1,
+    "vae_epochs": 40,
+    "scanvi_epochs": 5,
+    "gene_likelihood": "zinb",
+    "threshold": 0.5,   # Supp. Fig. 3
+}
+
+# Integer batch codes used throughout the screens. There is no batch 4, and
+# batch 2 ("mixed") is excluded from cross-validation because it overlaps
+# mP_d1 and mE_d2.
+SCREEN_BATCHES = {
+    1: {"name": "mP_d1", "species": "mouse", "lineage": "pluripotent", "n_cells": 4751},
+    2: {"name": "mixed", "species": "mouse", "lineage": "mixed",       "n_cells": 175},
+    3: {"name": "mE_d2", "species": "mouse", "lineage": "endoderm",    "n_cells": 5224},
+    5: {"name": "hM_d4", "species": "human", "lineage": "mesoderm",    "n_cells": 6379},
+    6: {"name": "hE_d8", "species": "human", "lineage": "endoderm",    "n_cells": 9921},
+    7: {"name": "hM_d7", "species": "human", "lineage": "mesoderm",    "n_cells": 11857},
+}
+
+
+def published_hyperparameters(signal: str) -> dict:
+    """Return the published hyperparameters for one signaling pathway.
+
+    Args:
+        signal: pathway name, e.g. "Wnt"
+
+    Returns:
+        dict with n_hidden, n_latent, n_layers, vae_epochs and scanvi_epochs,
+        ready to splat into IRIS.run_model().
+
+    Example:
+        >>> iris_obj.run_model("preds.csv", **published_hyperparameters("Wnt"))
+    """
+    if signal not in PUBLISHED_ARCHITECTURES:
+        raise KeyError(
+            f"No published architecture for {signal!r}; "
+            f"have {sorted(PUBLISHED_ARCHITECTURES)}"
+        )
+    return {
+        **PUBLISHED_ARCHITECTURES[signal],
+        "n_layers": PUBLISHED_TRAINING["n_layers"],
+        "vae_epochs": PUBLISHED_TRAINING["vae_epochs"],
+        "scanvi_epochs": PUBLISHED_TRAINING["scanvi_epochs"],
+    }
+
+
 class IRIS:
     def __init__(
             self, 
@@ -413,7 +480,12 @@ class IRIS:
             scanvi_epochs: int = 5
         ) -> tuple[pd.DataFrame, AnnData]:
         '''
-        Runs model with given hyperparameters and makes predictions on each signaling pathway. 
+        Runs model with given hyperparameters and makes predictions on each signaling pathway.
+
+        NOTE: the default arguments below are NOT the configuration used for the
+        published figures, which used n_layers=1, vae_epochs=40 and a per-pathway
+        n_hidden/n_latent. Use published_hyperparameters(signal) to reproduce the
+        paper. 
         If no VAE models stored in IRIS object, creates model with given hyperparameters, runs, 
         and stores model into IRIS object. Otherwise, loads in models stored in IRIS object and 
         runs the models to make predictions. If explicit train/test batches are given, obscures 

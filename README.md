@@ -71,5 +71,31 @@ The example notebook [fig3+4.ipynb](https://github.com/Pulin-Li-Lab/IRIS-signali
 
 The IRIS class contains the necessary functions to re-create every figure in the paper, arranged roughly chronologically.
 
+## Reproducing the paper's figures
+
+[`reproducibility/`](reproducibility/) contains scripts and notebooks organized
+by figure number, driving the analyses end to end from pinned configuration:
+
+```bash
+cd reproducibility
+PYTHONPATH=src python scripts/check_setup.py   # verify paths and environment
+PYTHONPATH=src python scripts/run_all.py       # rebuild the CPU-only figures
+```
+
+It covers main Figures 1-4 and, for the supplement, maps every Supplementary
+Figure 1-21 to either a script here, a wrapped source-data script, or an
+explicit statement of what is missing:
+
+```bash
+PYTHONPATH=src python figures/supp/supp_coverage.py
+```
+
+Note the figure numbering changed during revision — the archive uses an older
+six-figure scheme. See
+[`reproducibility/docs/FIGURE_MAPPING.md`](reproducibility/docs/FIGURE_MAPPING.md).
+
+Data is not bundled; obtain it from the accessions below and point
+`reproducibility/config/paths.yaml` at your copy.
+
 ## Data
 An h5ad data file can be made from this dataset: [GSE122009](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE122009), and used in IRIS. A new single-cell dataset from this paper will also eventually be publicly available as a [NIH GEO dataset](https://www.ncbi.nlm.nih.gov/gds/?term=GSE289836). 

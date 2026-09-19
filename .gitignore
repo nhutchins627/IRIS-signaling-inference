@@ -1,6 +1,10 @@
-# Ignore Python cache files and notebooks
+# Ignore Python cache files
 __pycache__/
 *.pyc
 *.pyo
-*.ipynb
 *.DS_Store
+
+# Ignore stray notebooks, but keep the curated ones that are documented
+*.ipynb
+!iris/examples/*.ipynb
+!reproducibility/notebooks/*.ipynb
